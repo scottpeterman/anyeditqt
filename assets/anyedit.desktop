@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=AnyEdit
+GenericName=Text Editor
+Comment=A code editor with 198 language grammars
+# Exec is rewritten by scripts/bundle-linux.sh to the installed launcher path.
+# %F, not %f or %U: the application takes several file arguments and opens a tab
+# for each, and %f would make the desktop environment launch one process per
+# file.
+Exec=anyedit %F
+Icon=anyedit
+Terminal=false
+Categories=Development;TextEditor;Utility;
+MimeType=text/plain;text/x-csrc;text/x-c++src;text/x-python;text/x-shellscript;application/json;application/xml;text/markdown;
+Keywords=editor;code;text;source;
+StartupWMClass=anyedit

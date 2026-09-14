@@ -1,0 +1,32 @@
+# A CMake cache records the absolute path it was created at and cannot be
+# relocated, so a build directory that travels with the tree breaks every cmake
+# call on the receiving machine with an error naming the ORIGINAL author's home
+# directory. Keep them out of the archive; the bundle scripts wipe one that gets
+# through anyway.
+build/
+build-*/
+dist/
+_deps/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Makefile
+
+# grammar corpus regeneration, from grammars/README.md
+grammars/out.json
+grammars/ref.json
+node_modules/
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+*.o
+*.a
+*.so
+*.dylib
+*.swp
+.DS_Store

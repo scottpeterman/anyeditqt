@@ -1,0 +1,7 @@
+// app/anyedit.rc -- Windows resources.
+//
+// IDI_ICON1 is not arbitrary: the Windows shell shows the icon with the LOWEST
+// numeric resource id as the executable's icon, and Qt's qt_windows.cpp picks
+// the same one for the window. Any other name works for the shell and leaves
+// the window with the default Qt icon.
+IDI_ICON1 ICON "../assets/anyedit.ico"

@@ -1,0 +1,21 @@
+<!--
+  app/anyedit.qrc
+
+  The window icon, compiled into the executable.
+
+  NOT loaded from assets/ at runtime: that path exists in the source tree and
+  nowhere else, so the window would be iconless for every installed copy while
+  looking correct to whoever built it. The bundle icon on macOS and the .desktop
+  Icon= on Linux cover the Dock and the launcher; this is what the window
+  manager reads for the title bar, the task switcher and the panel.
+
+  Three sizes, not one. QIcon picks the nearest and scales the rest, and a 256
+  scaled to 22 for a panel is visibly softer than the 32 drawn for it.
+-->
+<RCC>
+  <qresource prefix="/icons">
+    <file alias="anyedit-32.png">../assets/anyedit-32.png</file>
+    <file alias="anyedit-128.png">../assets/anyedit-128.png</file>
+    <file alias="anyedit-256.png">../assets/anyedit-256.png</file>
+  </qresource>
+</RCC>
