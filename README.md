@@ -6,6 +6,8 @@
 A code editor in the shape of [anytermqt](https://github.com/scottpeterman/anytermqt):
 a Qt-free C++ core, a Qt widget over it, PySide6 bindings over that. No Go.
 
+![AnyEdit](https://raw.githubusercontent.com/scottpeterman/anyeditqt/refs/heads/main/screenshots/slides.gif)
+
 The model and the syntax engine come from [ace](https://github.com/ajaxorg/ace) —
 not as a port of its code, but as a port of its architecture plus its 198
 language grammars, consumed as data.
