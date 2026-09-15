@@ -5,6 +5,14 @@
 //
 // Corpus, settings, window, event loop. Everything else is in mainwindow.cpp,
 // which is a class in a header so a test can construct it -- see app/tests/.
+#ifdef _WIN32
+#include <windows.h>
+#include <fcntl.h>
+#include <io.h>
+#include <cstdio>
+#include <iostream>
+#endif
+
 #include <QApplication>
 #include <QDir>
 #include <QIcon>
@@ -32,9 +40,73 @@ QString findGrammars() {
     return {};
 }
 
+#ifdef _WIN32
+// Make stdout and stderr work when there is somewhere for them to go, and not
+// open a console window when there is not.
+//
+// The executable is linked WIN32_EXECUTABLE, i.e. /SUBSYSTEM:WINDOWS, so
+// double-clicking it does not drag a black box along behind the editor. The
+// cost is that the CRT binds stdout to nothing, and `anyedit --check` -- which
+// bundle-windows.bat greps to prove a staged tree finds its own corpus -- goes
+// silent.
+//
+// THE ORDER BELOW IS THE WHOLE THING, and the obvious version is wrong:
+//
+//   AttachConsole(ATTACH_PARENT_PROCESS);
+//   freopen_s(&f, "CONOUT$", "w", stdout);
+//
+// That prints to the console, and ONLY to the console. AttachConsole resets
+// the standard handles, and reopening CONOUT$ then points stdout at the
+// console window -- overriding any redirection the caller asked for. Run with
+// `> file` the text appears on screen and the file is empty, which is exactly
+// what happened: the smoke test could see its own output and still failed.
+//
+// So the handles are read FIRST. One that already refers to a file, a pipe or
+// an inherited console is bound to the CRT stream as it is. Only when there is
+// no handle at all is the parent's console borrowed -- and that is the case
+// where there is nothing to override.
+bool bindStandardStream(DWORD which, FILE *stream, const char *device,
+                        const char *mode) {
+    const HANDLE h = GetStdHandle(which);
+    if (h && h != INVALID_HANDLE_VALUE && GetFileType(h) != FILE_TYPE_UNKNOWN) {
+        const int flags = (mode[0] == 'r') ? (_O_RDONLY | _O_TEXT) : _O_TEXT;
+        const int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), flags);
+        if (fd == -1) return false;
+        if (_dup2(fd, _fileno(stream)) != 0) return false;
+        setvbuf(stream, nullptr, _IONBF, 0);
+        return true;
+    }
+    FILE *f = nullptr;
+    return freopen_s(&f, device, mode, stream) == 0;
+}
+
+void attachParentConsole() {
+    // Read before attaching: AttachConsole overwrites these.
+    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    const HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
+    const auto usable = [](HANDLE h) {
+        return h && h != INVALID_HANDLE_VALUE && GetFileType(h) != FILE_TYPE_UNKNOWN;
+    };
+    const bool haveOut = usable(out);
+    const bool haveErr = usable(err);
+
+    if (!haveOut && !haveErr) {
+        // Nothing inherited. Either launched from Explorer, where this fails
+        // and nothing happens, or from a shell whose console we can borrow.
+        if (!AttachConsole(ATTACH_PARENT_PROCESS)) return;
+    }
+    bindStandardStream(STD_OUTPUT_HANDLE, stdout, "CONOUT$", "w");
+    bindStandardStream(STD_ERROR_HANDLE, stderr, "CONOUT$", "w");
+    std::ios::sync_with_stdio(true);
+}
+#endif  // _WIN32
+
 }  // namespace
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    attachParentConsole();
+#endif
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName("anyedit");
     QCoreApplication::setOrganizationName("anyeditqt");

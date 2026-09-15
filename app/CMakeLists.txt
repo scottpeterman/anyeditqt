@@ -96,6 +96,15 @@ target_compile_definitions(anyedit_app PUBLIC ANYEDIT_VERSION="${PROJECT_VERSION
 # the .icns extension is optional but harmless. Getting it wrong is silent: the
 # bundle builds, and shows the generic icon.
 set_target_properties(anyedit PROPERTIES
+    # /SUBSYSTEM:WINDOWS. Without it MSVC links a console application and
+    # Windows opens a console window behind the editor on every launch,
+    # including from Explorer -- which reads as a script somebody wrapped
+    # rather than as an application.
+    #
+    # It also silences stdout, so main.cpp reattaches to the parent console
+    # when there is one. `anyedit --check` has to keep printing, because
+    # bundle-windows.bat greps it.
+    WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "AnyEdit"
     MACOSX_BUNDLE_GUI_IDENTIFIER "org.anyeditqt.anyedit"

@@ -418,23 +418,41 @@ echo     one Qt throughout, and the staged tree finds its own corpus
 
 REM --- zip -------------------------------------------------------------------
 
-if "%MAKEZIP%"=="1" (
-    set "ZIP=dist\anyedit-%VERSION%-windows-x64.zip"
-    echo ==^> writing !ZIP!
-    if exist "!ZIP!" del /q "!ZIP!"
-    powershell -NoProfile -Command ^
-        "Compress-Archive -Path 'dist\anyedit' -DestinationPath '!ZIP!'"
-    if errorlevel 1 goto fail
-    REM Bare filename inside the .sha256, so it verifies wherever the pair is
-    REM downloaded to rather than only where it was built. The format matches
-    REM sha256sum's so the same file works on any platform.
-    powershell -NoProfile -Command ^
-        "$f='!ZIP!'; $h=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); ^
-         Set-Content -NoNewline -Path ($f+'.sha256') ^
-             -Value ($h+'  '+(Split-Path $f -Leaf)+[Environment]::NewLine)"
-    if errorlevel 1 goto fail
-    type "!ZIP!.sha256"
+REM NOT inside a parenthesised if-block, and each powershell command on ONE
+REM line. Both rules are the same bug twice over:
+REM
+REM   ^ is a line continuation only OUTSIDE quotes. Inside a quoted string it is
+REM   an ordinary character, so a "..." that spans lines ends at the first line
+REM   break and cmd tries to run the remainder as a command. That is where
+REM   "-Value was unexpected at this time" came from -- AFTER every verification
+REM   had passed, which makes it read as a packaging failure rather than a typo.
+REM
+REM   And a ( ) block is parsed in full before any of it runs, so a stray
+REM   parenthesis inside it -- of which a PowerShell expression has several --
+REM   can close the block early. A goto costs nothing and removes the class.
+
+if not "%MAKEZIP%"=="1" goto :skipzip
+
+set "ZIP=dist\anyedit-%VERSION%-windows-x64.zip"
+echo ==^> writing %ZIP%
+if exist "%ZIP%" del /q "%ZIP%"
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\anyedit' -DestinationPath '%ZIP%' -Force"
+if errorlevel 1 goto fail
+if not exist "%ZIP%" (
+    echo error: Compress-Archive reported success but wrote no %ZIP% 1>&2
+    goto fail
 )
+
+REM Bare filename inside the .sha256, so the pair verifies wherever it is
+REM downloaded to rather than only where it was built. Two spaces between hash
+REM and name is sha256sum's format, so one file works on all three platforms.
+REM Single quotes throughout: nesting double quotes inside a cmd "..." is its
+REM own category of pain and is not needed here.
+powershell -NoProfile -Command "$h=(Get-FileHash '%ZIP%' -Algorithm SHA256).Hash.ToLower(); $n=Split-Path '%ZIP%' -Leaf; Set-Content -Path '%ZIP%.sha256' -Value ($h+'  '+$n) -Encoding ASCII"
+if errorlevel 1 goto fail
+type "%ZIP%.sha256"
+
+:skipzip
 
 echo.
 echo run it with:
