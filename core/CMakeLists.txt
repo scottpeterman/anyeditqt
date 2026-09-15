@@ -33,6 +33,22 @@ set(PCRE2_BUILD_PCRE2_32 OFF CACHE BOOL "" FORCE)
 set(PCRE2_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(PCRE2_BUILD_PCRE2GREP OFF CACHE BOOL "" FORCE)
 set(PCRE2_SUPPORT_JIT ON CACHE BOOL "" FORCE)
+# Link size 3, not the default 2.
+#
+# The tokenizer fuses every rule in a state into ONE alternation, so a state's
+# pattern is the sum of its rules. At link size 2 PCRE2 refuses a compiled
+# pattern over 64KB with "regular expression is too large", and a grammar
+# imported from a Sublime syntax hits that immediately: cisco-ios's `start`
+# state is 119 rules and 51KB of source regex, because its keyword lists are
+# written out in full rather than as a keyword table.
+#
+# The failure is not loud. The tokenizer skips a state it cannot compile and
+# the rest of the mode keeps working, so the symptom is one language that
+# highlights almost nothing.
+#
+# The cost is a slightly larger compiled form and marginally more work per
+# match; ace's own 198 modes are nowhere near either limit and are unaffected.
+set(PCRE2_LINK_SIZE "3" CACHE STRING "" FORCE)
 FetchContent_Declare(pcre2
     GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
     GIT_TAG pcre2-10.44
