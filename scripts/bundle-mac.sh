@@ -10,6 +10,7 @@
 #   ./scripts/bundle-mac.sh --arch x86_64
 #   ./scripts/bundle-mac.sh --install
 #   ./scripts/bundle-mac.sh --sign "Developer ID Application: ..." --dmg
+#   ./scripts/bundle-mac.sh --zip
 #
 # WHICH Qt, echoed before the build, for the same reason bundle-linux.sh and
 # bundle-windows.bat do it: a Mac with Homebrew Qt and an installed Qt will let
@@ -51,6 +52,7 @@ BUILD_DIR="build-mac"
 QTPREFIX="${CMAKE_PREFIX_PATH:-}"
 SIGN_ID=""
 MAKE_DMG=0
+MAKE_ZIP=0
 INSTALL=0
 TARGET="anyedit"
 ARCH="$(uname -m)"
@@ -65,9 +67,10 @@ while [[ $# -gt 0 ]]; do
         --arch=*) ARCH="${1#*=}"; shift ;;
         --sign) SIGN_ID="$2"; shift 2 ;;
         --dmg) MAKE_DMG=1; shift ;;
+        --zip) MAKE_ZIP=1; shift ;;
         --install) INSTALL=1; shift ;;
         --build-dir) BUILD_DIR="$2"; shift 2 ;;
-        -h|--help) sed -n '3,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '3,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -512,6 +515,49 @@ if [[ "${MAKE_DMG}" -eq 1 ]]; then
     # downloaded to rather than only where it was built.
     ( cd dist && shasum -a 256 "$(basename "${DMG}")" > "$(basename "${DMG}").sha256" )
     cat "${DMG}.sha256"
+fi
+
+# --- 6b. zip ---------------------------------------------------------------
+#
+# ditto, NOT zip -r, and this is not a preference.
+#
+# A Qt framework inside a .app is symlinks all the way down -- Versions/Current,
+# and the top-level QtCore pointing into it. zip -r FOLLOWS symlinks, so the
+# archive carries four copies of every framework binary and unpacks to a layout
+# macOS will not load. And the bundle is signed by now; part of a signature
+# lives in extended attributes, which zip -r drops, so the unzipped app fails
+# verification with "damaged and can't be opened" -- a message that reads as a
+# corrupt download rather than as a bad archiver.
+#
+# ditto -c -k preserves both, and it is what Apple's own notarization
+# instructions use. --sequesterRsrc keeps resource forks in the AppleDouble
+# form the format expects, and --keepParent puts anyedit.app INSIDE the zip
+# rather than spilling Contents/ into whatever directory it is opened in.
+if [[ "${MAKE_ZIP}" -eq 1 ]]; then
+    mkdir -p dist
+    ZIP="dist/anyedit-${VERSION}-macos-${ARCH}.zip"
+    say "writing ${ZIP}"
+    rm -f "${ZIP}"
+    ditto -c -k --sequesterRsrc --keepParent "${APP}" "${ZIP}"
+    ls -lh "${ZIP}"
+    ( cd dist && shasum -a 256 "$(basename "${ZIP}")" > "$(basename "${ZIP}").sha256" )
+    cat "${ZIP}.sha256"
+
+    # A zip that unpacks to something macOS rejects is not obviously different
+    # from one that does not, so the round trip is checked rather than assumed:
+    # unpack to a scratch directory and verify the signature survived.
+    TMPCHECK="$(mktemp -d)"
+    trap 'rm -rf "${TMPCHECK}"' EXIT
+    ditto -x -k "${ZIP}" "${TMPCHECK}"
+    if [[ ! -d "${TMPCHECK}/$(basename "${APP}")" ]]; then
+        die "the zip did not unpack to $(basename "${APP}"); --keepParent did not take"
+    fi
+    if ! codesign --verify --deep --strict "${TMPCHECK}/$(basename "${APP}")" 2>/dev/null; then
+        die "the unpacked app fails signature verification.
+    The archive lost extended attributes or symlinks, which is what zip -r does
+    and ditto is here to avoid."
+    fi
+    say "the zip round-trips and the unpacked bundle still verifies"
 fi
 
 # --- 7. install ------------------------------------------------------------
