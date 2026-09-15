@@ -14,6 +14,7 @@
 // a UTF-8 boundary as long as the pattern does.
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -60,7 +61,22 @@ public:
 
     // Every match, in document order. Capped: a match list is used to paint
     // highlights, and painting is bounded by the viewport while a file is not.
-    std::vector<Range> all(const Document &doc, size_t limit = 20000) const;
+    // When `total` is given the scan keeps going past the cap and counts,
+    // without storing, so a caller can report the real number.
+    static constexpr size_t kDefaultLimit = 20000;
+    std::vector<Range> all(const Document &doc, size_t limit = kDefaultLimit,
+                           size_t *total = nullptr) const;
+
+    // Every match, uncapped, for a caller running on another thread. Checks
+    // `cancel` every 1024 rows and returns an empty list when it is set, and
+    // publishes the rows scanned so far to `rowsDone` for a progress bar.
+    //
+    // Reads the Document and nothing else: safe beside other readers, NOT
+    // beside an edit. The caller has to keep the document still -- a modal
+    // dialog does. Use a Search of the caller's own; one Search is not safe
+    // to share between threads.
+    std::vector<Range> collect(const Document &doc, const std::atomic<bool> &cancel,
+                               std::atomic<int> *rowsDone = nullptr) const;
 
     // Replaces every match. The replacement is LITERAL -- "$1" inserts a dollar
     // and a one, it does not interpolate a capture group. Half-supporting

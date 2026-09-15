@@ -151,3 +151,17 @@ TEST(double_mark_does_not_create_an_empty_group) {
     CHECK(u.undo());
     CHECK_EQ(d.text(), std::string());
 }
+
+TEST(clear_redo_leaves_undo_alone) {
+    Document d("abc");
+    UndoManager u(&d);
+    d.insert({0, 3}, "d");
+    u.mark();
+    d.insert({0, 4}, "e");
+    CHECK(u.undo());
+    CHECK(u.canRedo());
+    u.clearRedo();
+    CHECK(!u.canRedo());
+    CHECK_EQ(u.undoDepth(), 1);
+    CHECK_EQ(d.text(), std::string("abcd"));
+}

@@ -2,6 +2,7 @@
 #include "aced/search.h"
 
 #include <algorithm>
+#include <limits>
 
 #include "aced/document.h"
 #include "aced/regex.h"
@@ -147,21 +148,47 @@ Range Search::previous(const Document &doc, Position from, bool *found) const {
     return {};
 }
 
-std::vector<Range> Search::all(const Document &doc, size_t limit) const {
+std::vector<Range> Search::all(const Document &doc, size_t limit, size_t *total) const {
     std::vector<Range> out;
+    size_t count = 0;
+    if (total) *total = 0;
     if (!valid()) return out;
     for (int row = 0; row < doc.lineCount(); ++row) {
-        for (const LineMatch &m : d_->matchesIn(doc.line(row))) {
-            out.push_back({{row, m.start}, {row, m.end}});
-            if (out.size() >= limit) return out;
+        const auto ms = d_->matchesIn(doc.line(row));
+        if (out.size() < limit) {
+            for (const LineMatch &m : ms) {
+                if (out.size() >= limit) break;
+                out.push_back({{row, m.start}, {row, m.end}});
+            }
+        } else if (!total) {
+            return out;
         }
+        count += ms.size();
     }
+    if (total) *total = count;
+    return out;
+}
+
+std::vector<Range> Search::collect(const Document &doc, const std::atomic<bool> &cancel,
+                                  std::atomic<int> *rowsDone) const {
+    std::vector<Range> out;
+    if (!valid()) return out;
+    const int n = doc.lineCount();
+    for (int row = 0; row < n; ++row) {
+        if ((row & 1023) == 0) {
+            if (cancel.load(std::memory_order_relaxed)) return {};
+            if (rowsDone) rowsDone->store(row, std::memory_order_relaxed);
+        }
+        for (const LineMatch &m : d_->matchesIn(doc.line(row)))
+            out.push_back({{row, m.start}, {row, m.end}});
+    }
+    if (rowsDone) rowsDone->store(n, std::memory_order_relaxed);
     return out;
 }
 
 int Search::replaceAll(Document &doc, const std::string &replacement) const {
     if (!valid()) return 0;
-    const std::vector<Range> ranges = all(doc, 1000000);
+    const std::vector<Range> ranges = all(doc, std::numeric_limits<size_t>::max());
     // BACK TO FRONT. Replacing left to right shifts every later match by the
     // difference in length, so the second replacement lands in the wrong place
     // and the damage compounds down the line.

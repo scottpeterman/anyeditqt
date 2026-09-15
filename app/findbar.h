@@ -13,11 +13,13 @@
 #pragma once
 
 #include <QWidget>
+
 #include <memory>
 
 #include "aced/search.h"
 
 class QCheckBox;
+class QTimer;
 class QLabel;
 class QLineEdit;
 class QToolButton;
@@ -58,6 +60,15 @@ public:
     // the bar is edited.
     void refresh();
 
+    // refresh(), but coalesced on a large document: every edit to the document
+    // under the bar lands here, and a replace-all is hundreds of thousands of
+    // edits. Does nothing while a replace-all job is running; the job
+    // refreshes once when it ends.
+    void scheduleRefresh();
+
+    // True while a threaded replace-all is scanning or applying.
+    bool replaceAllRunning() const { return job_ != nullptr; }
+
 public Q_SLOTS:
     void findNext();
     void findPrevious();
@@ -78,6 +89,24 @@ protected:
 
 private:
     void updateStatus();
+    // Typing lands here rather than in refresh(). A small document refreshes
+    // at once; a large one waits for a pause, because refresh() scans every
+    // row to count and would otherwise run once per character.
+    // Runs a pending debounced refresh now, so an action taken before the
+    // pause (Enter, Replace All) sees the text that was actually typed.
+    void flushPendingRefresh();
+
+    // A replace-all on a large document, in two phases. The scan runs on a
+    // worker thread over a document the modal progress dialog keeps still.
+    // The edits run on this thread in time slices, because Document has one
+    // mutator by design and its listeners (undo, the widget's caches) are not
+    // thread-safe. Cancel during the scan changes nothing; cancel during the
+    // edits undoes the ones already made.
+    struct ReplaceJob;
+    void startReplaceJob(std::unique_ptr<aced::Search> search, std::string replacement);
+    void onScanFinished();
+    void applySlice();
+    void finishReplaceJob(const QString &status);
     // The index of the match the cursor is sitting on, or -1.
     int currentIndex() const;
 
@@ -89,8 +118,11 @@ private:
     QCheckBox *wholeWord_ = nullptr;
     QCheckBox *regex_ = nullptr;
     QWidget *replaceRow_ = nullptr;
-    std::vector<aced::Range> matches_;
+    std::vector<aced::Range> matches_;  // capped, for painting
+    size_t total_ = 0;                  // every match, for the count
     QString error_;
+    QTimer *refreshTimer_ = nullptr;
+    std::unique_ptr<ReplaceJob> job_;
 };
 
 }  // namespace anyedit

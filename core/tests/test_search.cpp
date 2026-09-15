@@ -171,6 +171,46 @@ TEST(all_stops_at_the_limit) {
     CHECK_EQ(s.all(d, 10).size(), size_t(10));
 }
 
+TEST(all_counts_past_the_limit_when_asked) {
+    std::string text;
+    for (int i = 0; i < 500; ++i) text += "x x\n";
+    Document d(text);
+    Search s("x", {});
+    size_t total = 0;
+    const auto some = s.all(d, 10, &total);
+    CHECK_EQ(some.size(), size_t(10));
+    CHECK_EQ(total, size_t(1000));
+}
+
+TEST(collect_is_uncapped_and_reports_progress) {
+    std::string text;
+    for (int i = 0; i < 30000; ++i) text += "x\n";
+    Document d(text);
+    Search s("x", {});
+    std::atomic<bool> cancel{false};
+    std::atomic<int> rows{0};
+    CHECK_EQ(s.collect(d, cancel, &rows).size(), size_t(30000));
+    CHECK_EQ(rows.load(), d.lineCount());
+}
+
+TEST(collect_returns_nothing_when_cancelled) {
+    std::string text;
+    for (int i = 0; i < 5000; ++i) text += "x\n";
+    Document d(text);
+    Search s("x", {});
+    std::atomic<bool> cancel{true};
+    CHECK_EQ(s.collect(d, cancel).size(), size_t(0));
+}
+
+TEST(replace_all_is_not_capped) {
+    std::string text;
+    for (int i = 0; i < 30000; ++i) text += "x\n";
+    Document d(text);
+    Search s("x", {});
+    CHECK_EQ(s.replaceAll(d, "y"), 30000);
+    CHECK_EQ(s.all(d).size(), size_t(0));
+}
+
 TEST(replace_all_rewrites_every_match) {
     Document d("foo bar foo\nfoo");
     Search s("foo", {});

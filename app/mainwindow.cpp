@@ -210,8 +210,11 @@ acedqt::EditorWidget *MainWindow::newEditor() {
             });
     // Matches are ranges into a document that just changed, so they are stale
     // the moment it does -- including after the find bar's own replace.
+    // SCHEDULED, not immediate: this fires once per Delta, a replace-all or
+    // its undo is hundreds of thousands of them, and refresh() scans the whole
+    // document. Calling refresh() here is what hung a 1M-line replace-all.
     connect(ed, &acedqt::EditorWidget::textChanged, this, [this, ed] {
-        if (find_ && find_->isVisible() && find_->editor() == ed) find_->refresh();
+        if (find_ && find_->isVisible() && find_->editor() == ed) find_->scheduleRefresh();
     });
     return ed;
 }

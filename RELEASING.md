@@ -103,7 +103,7 @@ library path so the bundled Qt is used rather than any system copy.
 ## 5. Release notes
 
 Keep them about what changed and what is not there yet. The gap list in
-`README.md` is honest and should stay that way in the notes: IME preedit,
+`README.md` ("Not there yet") is honest and should stay that way in the notes: IME preedit,
 multi-cursor, word-wise Ctrl+arrow, bracket matching, xml/html folding,
 multi-line search, and detecting that a file changed on disk.
 

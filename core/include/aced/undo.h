@@ -52,6 +52,11 @@ public:
 
     void clear();
 
+    // Drops the redo stack only. For a caller that rolls back its own partial
+    // work with undo(): that group was never finished, and Ctrl+Y must not be
+    // able to put half of it back.
+    void clearRedo() { redo_.clear(); }
+
     int undoDepth() const { return static_cast<int>(undo_.size()); }
     int redoDepth() const { return static_cast<int>(redo_.size()); }
 
